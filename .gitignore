@@ -1,0 +1,18 @@
+# Virtuelle Umgebung ausschließen
+venv/
+
+# Byte-compiled Dateien
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+*.py[cod]
+*$py.class
+
+# Weitere systemabhängige Dateien
+.DS_Store
+*.egg-info/
+
+# Sonstige
+ATTIC/
+.env.secret
+*~

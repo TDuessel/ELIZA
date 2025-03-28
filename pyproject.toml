@@ -1,0 +1,26 @@
+[project]
+name = "eliza"
+version = "0.1.0"
+description = "A modular implementation of the ELIZA chatbot."
+authors = [{ name = "Thomas Düssel", email = "duessel.dev@gmail.com" }]
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.8"
+keywords = ["chatbot", "eliza", "nlp"]
+dependencies = ["sexpdata>=1.0.2"]
+
+[project.urls]
+Homepage = "https://github.com/TDuessel/eliza"
+
+[project.scripts]
+eliza = "eliza.main:run"
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
