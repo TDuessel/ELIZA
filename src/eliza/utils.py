@@ -17,6 +17,8 @@ WORD = fr"(?:\p{{L}}+(?:{APOSTROPHES}\p{{L}}+)*|\p{{N}}+)"
 WORD_RE = re.compile(WORD)
 
 # Sentence splitter for "end of thought" splitting
+# Does not remove punctuation at the very end of a sentence.
+# That is done by the tokenizer afterwards.
 SPLIT_REGEX = re.compile(r"[.?!,:;]+(?=\s)")
 
 # Default indentation for hierachical __str__

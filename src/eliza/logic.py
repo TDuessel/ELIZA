@@ -66,7 +66,7 @@ def get_response_logic(self, user_input: str, debug: bool = False) -> str:
 
         for rule in entry.response_rules:
             if debug:
-                print(f"  rule.pattern: {drule_to_regex(rule.pattern)}")
+                print(f"  rule.pattern: {rule.pattern}")
             #match = re.fullmatch(rule.regex, reflected_input, re.IGNORECASE)
             match = rule.regex.fullmatch(reflected_input)
             if match:

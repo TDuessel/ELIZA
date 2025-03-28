@@ -6,7 +6,7 @@ import regex as re
 from typing import Optional, List, Union
 from textwrap import indent
 from collections import deque
-from eliza.rules import drule_to_regex, rrule_to_fstring
+from eliza.rules import _parse_option_list, drule_to_regex, rrule_to_fstring
 from eliza.logic import get_response_logic
 from eliza.utils import INDENT, autogen_repr, fmt
 
@@ -17,9 +17,10 @@ class ElizaScriptError(Exception):
 @autogen_repr
 class Eliza():
     def __init__(self, script_path=None):
-        self.dictionary = ElizaDictionary()
-        self.categories = ElizaCategories()
         self.keystack = ElizaKeystack()
+        self.categories = ElizaCategories()
+        self.context = ElizaContext(self.categories)
+        self.dictionary = ElizaDictionary(parent=self.context)
         if script_path:
             # Avoid circular import
             from .parser import parse_eliza_script
@@ -51,12 +52,26 @@ class Eliza():
 
     get_response = get_response_logic  # Attach as method
 
+class ElizaContext:
+    def __init__(self, categories):
+        self.categories = categories
+        # Add more shared stuff here if needed (logger, memory stack, etc.)
+
+    def __repr__(self):
+        return f"<ElizaContext categories={len(self.categories)}>"
 
 class ElizaFormattedDict(dict):
     def __str__(self):
         return '\n'.join(f"{k}:\n{indent(str(v), INDENT)}" for k, v in self.items())
 
-class ElizaDictionary(ElizaFormattedDict): pass
+class ElizaDictionary(ElizaFormattedDict):
+    def __init__(self, *args, parent=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.parent = parent
+
+    def get_context(self):
+        return self.parent.context
+    
 class ElizaCategories(ElizaFormattedDict): pass
 
 @autogen_repr
@@ -89,6 +104,7 @@ class ElizaEntry():
                         raise TypeError("Expected ElizaRulesList")
                 setattr(self, key, value)
 
+    
 class ElizaRulesList(list):
     def __str__(self):
         return "["+',\n'.join(str(elem) for elem in self)+"]"
@@ -97,19 +113,23 @@ class ElizaRulesList(list):
 class ElizaRule():
     def __init__(self,
                  pattern: str,
-                 reassembly_list: Optional[ElizaReassemblyList] = None):
+                 reassembly_list: Optional[ElizaReassemblyList] = None,
+                 context=None):
         
         self.pattern = pattern
         self.reassembly_list = ElizaReassemblyList()
         self._compiled_regex = None
-        
+        self.context = context
         self.update(reassembly_list=reassembly_list)
 
+    drule_to_regex = drule_to_regex
+    _parse_option_list = _parse_option_list
+    
     @property
     def regex(self):
         # Lazy compile and cache
         if self._compiled_regex is None:
-            pattern_str = drule_to_regex(self.pattern)
+            pattern_str = drule_to_regex(self)
             self._compiled_regex = re.compile(pattern_str, re.IGNORECASE)
         return self._compiled_regex
 

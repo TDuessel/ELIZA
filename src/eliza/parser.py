@@ -91,7 +91,7 @@ def parse_eliza_data(data, eliza=None):
                     # They are replaced in case of duplicate key entries.
                     response_rules = ElizaRulesList()
                     for rule in entry[index:]:
-                        response_rules.append(ElizaRule(sexpdata.dumps(rule[0])[1:-1]))
+                        response_rules.append(ElizaRule(sexpdata.dumps(rule[0])[1:-1], context=eliza.context))
                         for item in rule[1:]:
                             response_rules[-1].add_reassembly(ElizaReassembly(sexpdata.dumps(item)[1:-1]))
                 else:
