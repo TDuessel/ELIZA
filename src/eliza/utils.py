@@ -1,4 +1,5 @@
 # utils.py
+from typing import Any, Type, TypeVar
 import regex as re
 
 # Define apostrophes to support: straight and curly
@@ -24,11 +25,13 @@ SPLIT_REGEX = re.compile(r"[.?!,:;]+(?=\s)")
 # Default indentation for hierachical __str__
 INDENT = '  '
 
-def autogen_repr(cls):
-    def __repr__(self):
+T = TypeVar("T")
+
+def autogen_repr(cls: Type[T]) -> Type[T]:
+    def __repr__(self: Any) -> str:
         attrs = ', '.join(f"{k}={v!r}" for k, v in self.__dict__.items())
         return f"{self.__class__.__name__}({attrs})"
-    cls.__repr__ = __repr__
+    cls.__repr__ = __repr__  # type: ignore[method-assign]
     return cls
 
-def fmt(obj): return str(obj) or "None"
+def fmt(obj: Any) -> str: return str(obj) or "None"

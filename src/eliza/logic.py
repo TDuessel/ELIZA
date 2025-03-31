@@ -1,8 +1,11 @@
 import regex as re
 from .utils import SPLIT_REGEX, WORD_RE
-from .rules import drule_to_regex
+from typing import TYPE_CHECKING
 
-def scan_for_keywords(self, part_sentence: str):
+if TYPE_CHECKING:
+    from .core import Eliza
+
+def scan_for_keywords(self: "Eliza", part_sentence: str) -> tuple[str, bool]:
     """
     Tokenizes a part sentence, scans it for keywords and applies
     alias-based substitutions to it.
@@ -15,7 +18,7 @@ def scan_for_keywords(self, part_sentence: str):
     tokens = WORD_RE.findall(part_sentence.upper())
     toprank = 0
     found_keyword = False
-    print(tokens)
+
     for i, token in enumerate(tokens):
         entry = self.dictionary.get(token)
         if entry and entry.rank is not None:
@@ -34,7 +37,7 @@ def scan_for_keywords(self, part_sentence: str):
                 
     return " ".join(tokens), found_keyword
 
-def get_response_logic(self, user_input: str, debug: bool = False) -> str:
+def get_response_logic(self: "Eliza", user_input: str, debug: bool = False) -> str:
     """
     Tokenizes user input, builds keystack, and returns a response.
     """
@@ -71,7 +74,7 @@ def get_response_logic(self, user_input: str, debug: bool = False) -> str:
             match = rule.regex.fullmatch(reflected_input)
             if match:
                 groups = match.groups() # tuple
-                response_format, capture_indices = rule.reassembly_list[0].compiled_template
+                response_format, capture_indices = rule.reassembly_list().template
                 selected_groups = [re.sub(r"\s+", " ", groups[i-1]) if groups[i-1] is not None else ""
                                    for i in capture_indices]
                 if debug:

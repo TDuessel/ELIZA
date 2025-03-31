@@ -6,13 +6,10 @@ import regex as re
 from typing import Optional, List, Union
 from textwrap import indent
 from collections import deque
-from eliza.rules import _parse_option_list, drule_to_regex, rrule_to_fstring
-from eliza.logic import get_response_logic
+#from eliza.rules import _drule_to_regex, rrule_to_fstring
+from . import rules, logic
+#from eliza.logic import get_response_logic
 from eliza.utils import INDENT, autogen_repr, fmt
-
-class ElizaScriptError(Exception):
-    """Exception raised for errors in the ELIZA script."""
-    pass
 
 @autogen_repr
 class Eliza():
@@ -30,7 +27,6 @@ class Eliza():
         dict_str = fmt(self.dictionary)
         cate_str = fmt(self.categories)
         keyst_str = fmt(self.keystack)
-        
         return (f"ELIZA Dictionary:\n{indent(dict_str, INDENT)}\n"
                 f"ELIZA Categories:\n{indent(cate_str, INDENT)}\n"
                 f"ELIZA Keystack:\n{indent(keyst_str, INDENT)}")
@@ -50,10 +46,10 @@ class Eliza():
         else:
             self.categories[key].append(item)
 
-    get_response = get_response_logic  # Attach as method
+    get_response = logic.get_response_logic  # Attach as method
 
 class ElizaContext:
-    def __init__(self, categories):
+    def __init__(self, categories: ElizaCategories):
         self.categories = categories
         # Add more shared stuff here if needed (logger, memory stack, etc.)
 
@@ -64,14 +60,7 @@ class ElizaFormattedDict(dict):
     def __str__(self):
         return '\n'.join(f"{k}:\n{indent(str(v), INDENT)}" for k, v in self.items())
 
-class ElizaDictionary(ElizaFormattedDict):
-    def __init__(self, *args, parent=None, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.parent = parent
-
-    def get_context(self):
-        return self.parent.context
-    
+class ElizaDictionary(ElizaFormattedDict): pass
 class ElizaCategories(ElizaFormattedDict): pass
 
 @autogen_repr
@@ -88,7 +77,6 @@ class ElizaEntry():
         self.redirection = None
         self.response_rules = ElizaRulesList()
         self.memory_rules = ElizaRulesList()
-
         self.update(alias=alias, rank=rank, redirection=redirection,
                     response_rules=response_rules, memory_rules=memory_rules)
     
@@ -111,27 +99,17 @@ class ElizaRulesList(list):
 
 @autogen_repr
 class ElizaRule():
+    """Docstring"""
     def __init__(self,
                  pattern: str,
                  reassembly_list: Optional[ElizaReassemblyList] = None,
-                 context=None):
+                 context = None):
         
         self.pattern = pattern
         self.reassembly_list = ElizaReassemblyList()
         self._compiled_regex = None
         self.context = context
         self.update(reassembly_list=reassembly_list)
-
-    drule_to_regex = drule_to_regex
-    _parse_option_list = _parse_option_list
-    
-    @property
-    def regex(self):
-        # Lazy compile and cache
-        if self._compiled_regex is None:
-            pattern_str = drule_to_regex(self)
-            self._compiled_regex = re.compile(pattern_str, re.IGNORECASE)
-        return self._compiled_regex
 
     def __str__(self):
         return (f"['{self.pattern}',\n"
@@ -150,29 +128,76 @@ class ElizaRule():
     def add_reassembly(self, reassembly):
         self.reassembly_list.append(reassembly)
 
+    @property
+    def regex(self):
+        # Lazy compile and cache
+        if self._compiled_regex is None:
+            pattern_str = self.to_regex()
+            self._compiled_regex = re.compile(pattern_str, re.IGNORECASE)
+        return self._compiled_regex
+
+    # instance method to build the regex from the pattern
+    to_regex = rules.drule_to_regex
+    
+
 class ElizaMemoryRule(ElizaRule):
     def __init__(self, pattern, reassembly_list=None):
         super().__init__(pattern, reassembly_list)
     
 class ElizaReassemblyList(list):
+    def __init__(self, *args):
+        super().__init__(*args)
+        self._index = 0
+
     def __str__(self):
         return "["+',\n '.join("'"+str(elem)+"'" for elem in self)+"]"
 
+    def __call__(self):
+        return self.next()
+
+    def next(self):
+        if not self:
+            raise IndexError("No reassembly rules available.")
+
+        item = self[self._index]
+        self._index = (self._index + 1) % len(self)
+        return item
+
 @autogen_repr
 class ElizaReassembly():
-    def __init__(self, reassembly):
+    def __init__(self, reassembly: str):
         self.reassembly = reassembly
-
-    @property
-    def compiled_template(self):
-        return rrule_to_fstring(self.reassembly)
-
+        self._format = None
+        self._indices = None
+        
     def __str__(self):
         return f"{self.reassembly}"
 
+    @property
+    def template(self):
+        # Lazy format and collect indices
+        if self._format is None:
+            self._format, self._indices = self.to_template()
+        return self._format, self._indices
+
+    # instance method to build the template
+    to_template = rules.rrule_to_template
+    
 class ElizaKeystack:
     def __init__(self):
         self._stack = deque()
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}({list(self._stack)})"
+
+    def __str__(self):
+        return ', '.join(f"{key} ({rank})" for key, rank in self)
+
+    def __len__(self):
+        return len(self._stack)
+
+    def __iter__(self):
+        return iter(self._stack)
 
     def push(self, item: tuple[str, int]):
         """Push to the top of the stack."""
@@ -188,18 +213,6 @@ class ElizaKeystack:
 
     def clear(self):
         self._stack.clear()
-
-    def __len__(self):
-        return len(self._stack)
-
-    def __iter__(self):
-        return iter(self._stack)
-
-    def __repr__(self):
-        return f"{self.__class__.__name__}({list(self._stack)})"
-
-    def __str__(self):
-        return ', '.join(f"{key} ({rank})" for key, rank in self)
 
 if __name__ == "__main__":
     pass

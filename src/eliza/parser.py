@@ -1,7 +1,7 @@
 import sys
-import sexpdata
+from typing import Optional
+import sexpdata # type: ignore
 from eliza.core import (
-    ElizaScriptError,
     Eliza,
     ElizaRulesList,
     ElizaReassemblyList,
@@ -9,12 +9,13 @@ from eliza.core import (
     ElizaMemoryRule,
     ElizaReassembly
 )
+from .exceptions import ElizaScriptError
 
 # Some special keywords are not used in input scan
 # They are marked during parsing by a rank == None 
 special_keys = ["DIT", "XFREMD", "NONE"]
 
-def parse_eliza_data(data, eliza=None):
+def parse_eliza_data(data: str, eliza: Optional[Eliza] = None) -> Eliza:
     """Parses ELIZA script data from a string."""
     parsed_data = sexpdata.loads(f'({data})')
 
@@ -107,7 +108,7 @@ def parse_eliza_data(data, eliza=None):
     
     return eliza
 
-def parse_eliza_script(file_path, eliza=None):
+def parse_eliza_script(file_path: str, eliza: Optional[Eliza] = None) -> Eliza:
     """Reads ELIZA script from a file and parses it."""
     with open(file_path, 'r', encoding='utf-8') as file:
         data = file.read()
