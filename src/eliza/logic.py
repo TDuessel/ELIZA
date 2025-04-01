@@ -1,9 +1,8 @@
 import regex as re
 from .utils import SPLIT_REGEX, WORD_RE
+from .exceptions import ElizaScriptError
 from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from .core import Eliza
+if TYPE_CHECKING: from .core import Eliza
 
 def scan_for_keywords(self: "Eliza", part_sentence: str) -> tuple[str, bool]:
     """
@@ -37,6 +36,26 @@ def scan_for_keywords(self: "Eliza", part_sentence: str) -> tuple[str, bool]:
                 
     return " ".join(tokens), found_keyword
 
+
+def resolve_redirection(self: "Eliza", entry):
+    """
+    Follows redirections for an dictionary entry and returns the final resolved entry.
+    Raises ElizaScriptError if a circular redirection is detected
+    or if a redirection target is missing.
+    """
+    visited = set()
+    while entry and entry.redirection:
+        redirection = entry.redirection
+        if redirection in visited:
+            path = " -> ".join(list(visited) + [redirection])
+            raise ElizaScriptError(f"Circular redirection detected: {path}")
+        visited.add(redirection)
+        entry = self.dictionary.get(redirection)
+        if not entry:
+            raise ElizaScriptError(f"Redirection '{redirection}' does not exist.")
+    return entry
+
+
 def get_response_logic(self: "Eliza", user_input: str, debug: bool = False) -> str:
     """
     Tokenizes user input, builds keystack, and returns a response.
@@ -67,16 +86,24 @@ def get_response_logic(self: "Eliza", user_input: str, debug: bool = False) -> s
         if debug:
             print(f" key: {key}")
 
+        entry = resolve_redirection(self, entry)
+        
         for rule in entry.response_rules:
             if debug:
                 print(f"  rule.pattern: {rule.pattern}")
-            #match = re.fullmatch(rule.regex, reflected_input, re.IGNORECASE)
+
+            if rule.pattern[0] == "=":
+                redirection = rule.pattern.strip('= ')
+                # entry = self.dictionary.get(redirection)
+                # break # oops, that is suspect
+            
             match = rule.regex.fullmatch(reflected_input)
             if match:
                 groups = match.groups() # tuple
                 response_format, capture_indices = rule.reassembly_list().template
-                selected_groups = [re.sub(r"\s+", " ", groups[i-1]) if groups[i-1] is not None else ""
-                                   for i in capture_indices]
+                selected_groups = ([re.sub(r"\s+", " ", groups[i-1]) if groups[i-1]
+                                    is not None else ""
+                                   for i in capture_indices])
                 if debug:
                     print(f"  selected_groups: {selected_groups}")
                 response = response_format.format(*selected_groups)
