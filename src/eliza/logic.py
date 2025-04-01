@@ -13,7 +13,7 @@ def scan_for_keywords(self: "Eliza", part_sentence: str) -> tuple[str, bool]:
     :return: The transformed input sentence and a flag that signals
     wheter or not a keyword was found.
     """
-    #tokens = re.findall(r"\b\w+(?:'\w+)?", part_sentence.upper())
+
     tokens = WORD_RE.findall(part_sentence.upper())
     toprank = 0
     found_keyword = False
@@ -37,19 +37,19 @@ def scan_for_keywords(self: "Eliza", part_sentence: str) -> tuple[str, bool]:
     return " ".join(tokens), found_keyword
 
 
-def resolve_redirection(self: "Eliza", entry):
+def resolve_redirection(self: "Eliza", entry, visited_keys: list):
     """
     Follows redirections for an dictionary entry and returns the final resolved entry.
     Raises ElizaScriptError if a circular redirection is detected
     or if a redirection target is missing.
     """
-    visited = set()
+
     while entry and entry.redirection:
         redirection = entry.redirection
-        if redirection in visited:
-            path = " -> ".join(list(visited) + [redirection])
+        if redirection in visited_keys:
+            path = " -> ".join(visited_keys + [redirection])
             raise ElizaScriptError(f"Circular redirection detected: {path}")
-        visited.add(redirection)
+        visited_keys.append(redirection)
         entry = self.dictionary.get(redirection)
         if not entry:
             raise ElizaScriptError(f"Redirection '{redirection}' does not exist.")
@@ -59,7 +59,7 @@ def resolve_redirection(self: "Eliza", entry):
 def process_keyword_entry(self: "Eliza",
                           key: str,
                           reflected_input: str,
-                          visited_keys: set,
+                          visited_keys: list,
                           debug: bool = False) -> str | None:
     """
     Resolves redirection and rules for a given keyword.
@@ -67,37 +67,43 @@ def process_keyword_entry(self: "Eliza",
     Prevents circular rule-level redirections.
     """
     if key in visited_keys:
-        path = " -> ".join(list(visited_keys) + [key])
+        path = " -> ".join(visited_keys + [key])
         raise ElizaScriptError(f"Circular rule-level redirection detected: {path}")
-    visited_keys.add(key)
+    visited_keys.append(key)
 
     entry = self.dictionary.get(key)
     if not entry:
         raise ElizaScriptError(f"Keyword '{key}' does not exist in the dictionary.")
-    
-    entry = resolve_redirection(self, entry)
+
+    entry = resolve_redirection(self, entry, visited_keys)
 
     for rule in entry.response_rules:
         if debug:
             print(f"  rule.pattern: {rule.pattern}")
-        
-        # Handle rule-level redirection like '=OTHERKEY'
-        if rule.pattern.startswith("="):
-            redirection_target = rule.pattern.strip("= ").upper()
-            if debug:
-                print(f"   → Rule-level redirection to '{redirection_target}'")
-            response = process_keyword_entry(self, redirection_target,
-                                             reflected_input, visited_keys, debug)
-            if response:
-                return response
-            else:
-                continue  # try next rule if redirected-to entry didn't match
 
         # Normal pattern matching
         match = rule.regex.fullmatch(reflected_input)
         if match:
             groups = match.groups()
+            # reassembly_list as callable returns entries in round-robin manner
             response_format, capture_indices = rule.reassembly_list().template
+
+            # Handle rule-level redirection like '=OTHERKEY'
+            if response_format.startswith("="):
+                redirection_target = response_format.strip("= ")
+                if debug:
+                    print(f"   → Rule-level redirection to '{redirection_target}'")
+                response = process_keyword_entry(self, redirection_target,
+                                                 reflected_input, visited_keys, debug)
+                if response:
+                    return response
+                else:
+                    continue  # try next rule if redirected-to entry didn't match
+
+            # Handle the NEWKEY special reassembly rule
+            elif response_format == "NEWKEY":
+                return None
+            
             selected_groups = ([re.sub(r"\s+", " ", groups[i-1]) if groups[i-1]
                                 is not None else ""
                                for i in capture_indices])
@@ -111,9 +117,12 @@ def get_response_logic(self: "Eliza", user_input: str, debug: bool = False) -> s
     """
     Tokenizes user input, builds keystack, and returns a response.
     """
-    #part_sentences = re.split(r'[.,;:!?]+(?=\s)', user_input)
     part_sentences = SPLIT_REGEX.split(user_input)
 
+    reflected_input = ""
+    found = None
+    response = None
+    
     for part in part_sentences:
         part_clean = part.strip()
         if not part_clean:
@@ -130,14 +139,13 @@ def get_response_logic(self: "Eliza", user_input: str, debug: bool = False) -> s
         print(f"reflected_input: {reflected_input}")
         print(f"keystack: {str(self.keystack)}")
     
-    response = ""  # default fallback
     while self.keystack:
         key, _ = self.keystack.pop()
         if debug:
             print(f" key: {key}")
-        response = process_keyword_entry(self, key, reflected_input, visited_keys=set(), debug=debug)
+        response = process_keyword_entry(self, key, reflected_input, visited_keys=list(), debug=debug)
         if response:
             break  # response found
 
     self.keystack.clear()
-    return response
+    return response or "I ShoULd NoT sAy tHIs;)"

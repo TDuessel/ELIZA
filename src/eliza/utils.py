@@ -35,3 +35,6 @@ def autogen_repr(cls: Type[T]) -> Type[T]:
     return cls
 
 def fmt(obj: Any) -> str: return str(obj) or "None"
+
+def clean_response(response: str) -> str:
+    return response.replace('\\', '')

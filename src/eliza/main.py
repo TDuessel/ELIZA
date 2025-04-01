@@ -1,6 +1,7 @@
 import os
 import sys
-from eliza.core import Eliza
+from .core import Eliza
+from .utils import clean_response
 
 def run() -> None:
     debug_env = os.getenv("ELIZA_DEBUG", "").lower() in ("1", "true", "yes", "on")
@@ -19,7 +20,7 @@ def run() -> None:
             print("ELIZA: GOODBYE! TAKE CARE.")
             break
         response = eliza.get_response(user_input, debug=debug_env)
-        print("ELIZA:", response)
+        print("ELIZA:", clean_response(response))
 
 if __name__ == "__main__":
     run()

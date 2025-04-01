@@ -186,7 +186,8 @@ class ElizaReassembly():
 class ElizaKeystack:
     def __init__(self):
         self._stack = deque()
-
+        self._seen_keys = set()
+        
     def __repr__(self):
         return f"{self.__class__.__name__}({list(self._stack)})"
 
@@ -200,19 +201,28 @@ class ElizaKeystack:
         return iter(self._stack)
 
     def push(self, item: tuple[str, int]):
-        """Push to the top of the stack."""
-        self._stack.appendleft(item)
+        """Push to the top of the stack if not already present."""
+        key, _ = item
+        if key not in self._seen_keys:
+            self._stack.appendleft(item)
+            self._seen_keys.add(key)
 
     def append(self, item: tuple[str, int]):
-        """Push to the bottom of the stack."""
-        self._stack.append(item)
+        """Push to the bottom of the stack if not already present."""
+        key, _ = item
+        if key not in self._seen_keys:
+            self._stack.append(item)
+            self._seen_keys.add(key)
 
     def pop(self) -> tuple[str, int]:
-        """Pop from the top of the stack."""
-        return self._stack.popleft()
+        """Pop from the top of the stack and update seen_keys."""
+        key, rank = self._stack.popleft()
+        self._seen_keys.discard(key)
+        return key, rank
 
     def clear(self):
         self._stack.clear()
+        self._seen_keys.clear()
 
 if __name__ == "__main__":
     pass
