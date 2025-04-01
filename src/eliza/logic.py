@@ -56,6 +56,57 @@ def resolve_redirection(self: "Eliza", entry):
     return entry
 
 
+def process_keyword_entry(self: "Eliza",
+                          key: str,
+                          reflected_input: str,
+                          visited_keys: set,
+                          debug: bool = False) -> str | None:
+    """
+    Resolves redirection and rules for a given keyword.
+    Returns a response if a rule matches, otherwise None.
+    Prevents circular rule-level redirections.
+    """
+    if key in visited_keys:
+        path = " -> ".join(list(visited_keys) + [key])
+        raise ElizaScriptError(f"Circular rule-level redirection detected: {path}")
+    visited_keys.add(key)
+
+    entry = self.dictionary.get(key)
+    if not entry:
+        raise ElizaScriptError(f"Keyword '{key}' does not exist in the dictionary.")
+    
+    entry = resolve_redirection(self, entry)
+
+    for rule in entry.response_rules:
+        if debug:
+            print(f"  rule.pattern: {rule.pattern}")
+        
+        # Handle rule-level redirection like '=OTHERKEY'
+        if rule.pattern.startswith("="):
+            redirection_target = rule.pattern.strip("= ").upper()
+            if debug:
+                print(f"   → Rule-level redirection to '{redirection_target}'")
+            response = process_keyword_entry(self, redirection_target,
+                                             reflected_input, visited_keys, debug)
+            if response:
+                return response
+            else:
+                continue  # try next rule if redirected-to entry didn't match
+
+        # Normal pattern matching
+        match = rule.regex.fullmatch(reflected_input)
+        if match:
+            groups = match.groups()
+            response_format, capture_indices = rule.reassembly_list().template
+            selected_groups = ([re.sub(r"\s+", " ", groups[i-1]) if groups[i-1]
+                                is not None else ""
+                               for i in capture_indices])
+            if debug:
+                print(f"   ↳ Matched. Groups: {selected_groups}")
+            return response_format.format(*selected_groups)
+
+    return None  # No rule matched
+
 def get_response_logic(self: "Eliza", user_input: str, debug: bool = False) -> str:
     """
     Tokenizes user input, builds keystack, and returns a response.
@@ -79,39 +130,14 @@ def get_response_logic(self: "Eliza", user_input: str, debug: bool = False) -> s
         print(f"reflected_input: {reflected_input}")
         print(f"keystack: {str(self.keystack)}")
     
-    response = ""   # default fallback
-    while self.keystack: # means while len(self.keystack) > 0
+    response = ""  # default fallback
+    while self.keystack:
         key, _ = self.keystack.pop()
-        entry = self.dictionary.get(key)
         if debug:
             print(f" key: {key}")
-
-        entry = resolve_redirection(self, entry)
-        
-        for rule in entry.response_rules:
-            if debug:
-                print(f"  rule.pattern: {rule.pattern}")
-
-            if rule.pattern[0] == "=":
-                redirection = rule.pattern.strip('= ')
-                # entry = self.dictionary.get(redirection)
-                # break # oops, that is suspect
-            
-            match = rule.regex.fullmatch(reflected_input)
-            if match:
-                groups = match.groups() # tuple
-                response_format, capture_indices = rule.reassembly_list().template
-                selected_groups = ([re.sub(r"\s+", " ", groups[i-1]) if groups[i-1]
-                                    is not None else ""
-                                   for i in capture_indices])
-                if debug:
-                    print(f"  selected_groups: {selected_groups}")
-                response = response_format.format(*selected_groups)
-                break
-        else:
-            continue
-        break
+        response = process_keyword_entry(self, key, reflected_input, visited_keys=set(), debug=debug)
+        if response:
+            break  # response found
 
     self.keystack.clear()
-    
     return response
