@@ -40,7 +40,10 @@ def scan_for_keywords(self: "Eliza", part_sentence: str) -> tuple[str, bool]:
     return " ".join(tokens), found_keyword
 
 
-def resolve_redirection(self: "Eliza", entry: ElizaEntry, visited_keys: List[str]) -> ElizaEntry:
+def resolve_redirection(self: "Eliza",
+                        entry: ElizaEntry,
+                        visited_keys: List[str],
+                        debug: bool = False) -> ElizaEntry:
     """
     Follows redirections for an dictionary entry and returns the final resolved entry.
     Raises ElizaScriptError if a circular redirection is detected
@@ -56,6 +59,9 @@ def resolve_redirection(self: "Eliza", entry: ElizaEntry, visited_keys: List[str
         entry = self.dictionary.get(redirection)
         if not entry:
             raise ElizaScriptError(f"Redirection '{redirection}' does not exist.")
+        if debug:
+            print(f" → Entry-level redirection to '{redirection}'")
+
     return entry
 
 
@@ -78,7 +84,7 @@ def process_keyword_entry(self: "Eliza",
     if not entry:
         raise ElizaScriptError(f"Keyword '{key}' does not exist in the dictionary.")
 
-    entry = resolve_redirection(self, entry, visited_keys)
+    entry = resolve_redirection(self, entry, visited_keys, debug)
 
     for rule in entry.response_rules:
         if debug:
@@ -137,9 +143,12 @@ def get_response_logic(self: "Eliza", user_input: str, debug: bool = False) -> s
         if found:
             break
 
-    if not found and 'NONE' in self.dictionary:
+    # A special keyword NONE should be in the dictionary
+    # and it should be terminal, i.e. without redirections
+    # and with a proper catch all (0) rule.
+    if 'NONE' in self.dictionary:
         self.keystack.append(('NONE', 0))
-        
+    
     if debug:
         print(f"reflected_input: {reflected_input}")
         print(f"keystack: {str(self.keystack)}")
