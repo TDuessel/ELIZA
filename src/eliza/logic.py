@@ -1,8 +1,11 @@
 import regex as re
 from .utils import SPLIT_REGEX, WORD_RE
 from .exceptions import ElizaScriptError
-from typing import TYPE_CHECKING
-if TYPE_CHECKING: from .core import Eliza
+from .model import ElizaEntry
+
+from typing import TYPE_CHECKING, List, cast
+if TYPE_CHECKING:
+    from .core import Eliza
 
 def scan_for_keywords(self: "Eliza", part_sentence: str) -> tuple[str, bool]:
     """
@@ -37,7 +40,7 @@ def scan_for_keywords(self: "Eliza", part_sentence: str) -> tuple[str, bool]:
     return " ".join(tokens), found_keyword
 
 
-def resolve_redirection(self: "Eliza", entry, visited_keys: list):
+def resolve_redirection(self: "Eliza", entry: ElizaEntry, visited_keys: List[str]) -> ElizaEntry:
     """
     Follows redirections for an dictionary entry and returns the final resolved entry.
     Raises ElizaScriptError if a circular redirection is detected
@@ -59,7 +62,7 @@ def resolve_redirection(self: "Eliza", entry, visited_keys: list):
 def process_keyword_entry(self: "Eliza",
                           key: str,
                           reflected_input: str,
-                          visited_keys: list,
+                          visited_keys: List[str],
                           debug: bool = False) -> str | None:
     """
     Resolves redirection and rules for a given keyword.
@@ -85,6 +88,8 @@ def process_keyword_entry(self: "Eliza",
         match = rule.regex.fullmatch(reflected_input)
         if match:
             groups = match.groups()
+            response_format: str
+            capture_indices: list[int]
             # reassembly_list as callable returns entries in round-robin manner
             response_format, capture_indices = rule.reassembly_list().template
 

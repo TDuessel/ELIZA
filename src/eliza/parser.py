@@ -1,27 +1,27 @@
 import sys
 from typing import Optional
 import sexpdata # type: ignore
-from eliza.core import (
-    Eliza,
+from .exceptions import ElizaScriptError
+from .model import (
     ElizaRulesList,
     ElizaReassemblyList,
     ElizaRule,
     ElizaMemoryRule,
     ElizaReassembly
 )
-from .exceptions import ElizaScriptError
+
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from .core import Eliza
 
 # Some special keywords are not used in input scan
 # They are marked during parsing by a rank == None 
 special_keys = ["DIT", "XFREMD", "NONE"]
 
-def parse_eliza_data(data: str, eliza: Optional[Eliza] = None) -> Eliza:
+def parse_eliza_data(self: "Eliza", data: str) -> None:
     """Parses ELIZA script data from a string."""
     parsed_data = sexpdata.loads(f'({data})')
 
-    if eliza is None:
-        eliza = Eliza()
-    
     for entry in parsed_data:
         if isinstance(entry, list):
             
@@ -68,7 +68,7 @@ def parse_eliza_data(data: str, eliza: Optional[Eliza] = None) -> Eliza:
                     reassembly_list.append(ElizaReassembly(rrule.strip()))
                     memory_rules.append(ElizaMemoryRule(drule.strip(), reassembly_list))
 
-                eliza.update_entry(key, memory_rules=memory_rules)
+                self.update_entry(key, memory_rules=memory_rules)
                 continue
 
             # Check if this is a DLIST entry
@@ -78,7 +78,7 @@ def parse_eliza_data(data: str, eliza: Optional[Eliza] = None) -> Eliza:
                     dlist_names = [str(item).strip('/') for item in dlist_sexp]
                     for dlist_key in dlist_names:
                         if dlist_key and dlist_key != "/":
-                            eliza.update_category(dlist_key, key)
+                            self.update_category(dlist_key, key)
                     continue
 
             if len(entry) > index and isinstance(entry[index], int):
@@ -93,7 +93,7 @@ def parse_eliza_data(data: str, eliza: Optional[Eliza] = None) -> Eliza:
                     response_rules = ElizaRulesList()
                     for rule in entry[index:]:
                         rule_str = sexpdata.dumps(rule[0]).strip('() ')
-                        response_rules.append(ElizaRule(rule_str, context=eliza.context))
+                        response_rules.append(ElizaRule(rule_str, context=self.context))
                         for item in rule[1:]:
                             rule_str = sexpdata.dumps(item).strip('() ')
                             response_rules[-1].add_reassembly(ElizaReassembly(rule_str))
@@ -107,23 +107,16 @@ def parse_eliza_data(data: str, eliza: Optional[Eliza] = None) -> Eliza:
                 rank = 0
             
             # Store in dictionary as object
-            eliza.update_entry(key, alias=alias, rank=rank,
+            self.update_entry(key, alias=alias, rank=rank,
                                redirection=redirection, response_rules=response_rules)
     
-    return eliza
 
-def parse_eliza_script(file_path: str, eliza: Optional[Eliza] = None) -> Eliza:
+def parse_eliza_script(self: "Eliza", file_path: str) -> None:
     """Reads ELIZA script from a file and parses it."""
     with open(file_path, 'r', encoding='utf-8') as file:
         data = file.read()
-    return parse_eliza_data(data, eliza=eliza)
+    return parse_eliza_data(self, data)
 
 # Example usage
 if __name__ == "__main__":
-    if len(sys.argv) > 1:
-        file_path = sys.argv[1]
-        eliza = parse_eliza_script(file_path)
-    
-    # Print parsed data for verification
-    print(eliza)
-
+    pass

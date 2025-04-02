@@ -1,12 +1,13 @@
 import regex as re
 import sexpdata # type: ignore
-from typing import Optional, List, TYPE_CHECKING
 from .utils import WORD
 from .exceptions import ElizaScriptError
+
+from typing import TYPE_CHECKING, List, cast
 if TYPE_CHECKING:
-    from .core import ElizaRule, ElizaReassembly
+    from .model import ElizaRule, ElizaContext, ElizaReassembly
 
-
+    
 def normalize_subrule(subrule: List[str], prefixes: str = "*/=") -> List[str]:
     if not subrule:
         return subrule  # empty, return as-is
@@ -51,7 +52,8 @@ def drule_to_regex(self: "ElizaRule") -> str:
                 regex_parts.append(r"\b(" + "|".join(re.escape(opt) for opt in options) + r")\b")
             elif len(subrule) == 2 and subrule[0] == "/":
                 tag = subrule[1]
-                options = self.context.categories.get(tag.upper(), [])
+                context = cast("ElizaContext", self.context) # self.context is not None!
+                options = context.categories.get(tag.upper()) or []
                 regex_parts.append(r"\b(" + "|".join(re.escape(opt) for opt in options) + r")\b")
             else:
                 raise ElizaScriptError(f"Invalid subrule syntax: {self.pattern!r}")

@@ -1,7 +1,7 @@
 # Pytest-style test functions
 import pytest
 import regex as re
-from eliza.core import ElizaRule
+from eliza.model import ElizaRule
 
 @pytest.mark.parametrize("rule,text,should_match", [
     ("0 YOUR 0", "YOUR", True),

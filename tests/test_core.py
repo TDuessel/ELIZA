@@ -2,7 +2,7 @@ import pytest
 
 @pytest.mark.smoke
 def test_eliza_rule_regex_caching():
-    from eliza.core import ElizaRule
+    from eliza.model import ElizaRule
 
     rule = ElizaRule("0 YOU 1 ME")
     first = rule.regex

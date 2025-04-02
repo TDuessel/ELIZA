@@ -1,5 +1,5 @@
 import pytest
-from eliza.core import ElizaReassembly
+from eliza.model import ElizaReassembly
 
 @pytest.mark.parametrize("rrule, expected_fmt, expected_nums", [
     ("WHAT MAKES YOU THINK I 3", "WHAT MAKES YOU THINK I {}", [3]),
