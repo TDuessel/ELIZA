@@ -92,10 +92,10 @@ def parse_eliza_data(self: "Eliza", data: str) -> None:
                     # They are replaced in case of duplicate key entries.
                     response_rules = ElizaRulesList()
                     for rule in entry[index:]:
-                        rule_str = sexpdata.dumps(rule[0]).strip('() ')
+                        rule_str = sexpdata.dumps(rule[0])[1:-1]
                         response_rules.append(ElizaRule(rule_str, context=self.context))
                         for item in rule[1:]:
-                            rule_str = sexpdata.dumps(item).strip('() ')
+                            rule_str = sexpdata.dumps(item)[1:-1]
                             response_rules[-1].add_reassembly(ElizaReassembly(rule_str))
                 else:
                     # A leading non-list entry in the RulesList is a redirection,

@@ -1,5 +1,5 @@
 import regex as re
-from .utils import SPLIT_REGEX, WORD_RE
+from .utils import SPLIT_REGEX, WORD_RE, PRE_RE
 from .exceptions import ElizaScriptError
 from .model import ElizaEntry
 
@@ -99,7 +99,12 @@ def process_keyword_entry(self: "Eliza",
             # reassembly_list as callable returns entries in round-robin manner
             response_format, capture_indices = rule.reassembly_list().template
 
-            # Handle rule-level redirection like '=OTHERKEY'
+            # The NEWKEY directive abandons the actual key
+            # so that a new one can be popped from the keystack.
+            if response_format == "NEWKEY":
+                return None
+            
+            # Handle simple rule-level redirection like '=OTHERKEY'
             if response_format.startswith("="):
                 redirection_target = response_format.strip("= ")
                 if debug:
@@ -111,15 +116,25 @@ def process_keyword_entry(self: "Eliza",
                 else:
                     continue  # try next rule if redirected-to entry didn't match
 
-            # Handle the NEWKEY special reassembly rule
-            elif response_format == "NEWKEY":
-                return None
-            
             selected_groups = ([re.sub(r"\s+", " ", groups[i-1]) if groups[i-1]
                                 is not None else ""
                                for i in capture_indices])
             if debug:
                 print(f"   ↳ Matched. Groups: {selected_groups}")
+
+            # Handle PRE rule-level redirection with input preformatting
+            pre_match = PRE_RE.fullmatch(response_format)
+            if pre_match:
+                pre_format, redirect_key = pre_match.groups()
+
+                # Format using selected groups
+                new_input = pre_format.format(*selected_groups)
+    
+                if debug:
+                    print(f"   ↳ PRE directive. Reformatted input: '{new_input}', redirecting to: '{redirect_key}'")
+                   
+                return process_keyword_entry(self, redirect_key, new_input, visited_keys, debug)
+        
             return response_format.format(*selected_groups)
 
     return None  # No rule matched
@@ -157,7 +172,8 @@ def get_response_logic(self: "Eliza", user_input: str, debug: bool = False) -> s
         key, _ = self.keystack.pop()
         if debug:
             print(f" key: {key}")
-        response = process_keyword_entry(self, key, reflected_input, visited_keys=list(), debug=debug)
+        response = process_keyword_entry(self, key, reflected_input,
+                                         visited_keys=list(), debug=debug)
         if response:
             break  # response found
 

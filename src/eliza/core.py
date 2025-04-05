@@ -20,11 +20,13 @@ from .model import (
 
 @autogen_repr
 class Eliza():
-    def __init__(self, script_path=None):
+    def __init__(self, script_data=None, script_path=None):
         self.keystack = ElizaKeystack()
         self.categories = ElizaCategories()
         self.context = ElizaContext(self.categories)
         self.dictionary = ElizaDictionary()
+        if script_data:
+            self.parse_data(script_data)
         if script_path:
             self.parse_script(script_path)
             
