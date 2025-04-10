@@ -13,7 +13,7 @@ from eliza.model import ElizaReassembly
 ])
 @pytest.mark.smoke
 def test_rrule_to_template(rrule, expected_fmt, expected_nums):
-    reassembly_obj = ElizaReassembly(reassembly=rrule)
+    reassembly_obj = ElizaReassembly(rrule)
     result_fmt, result_nums = reassembly_obj.to_template()
     assert result_fmt == expected_fmt
     assert result_nums == expected_nums

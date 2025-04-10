@@ -13,6 +13,7 @@ from . import rules
 class ElizaContext:
     def __init__(self, categories: ElizaCategories):
         self.categories = categories
+        self.memory_queue = deque() # First-in-first-out memory
         # Add more shared stuff here if needed (logger, memory stack, etc.)
 
     def __repr__(self):
@@ -27,24 +28,22 @@ class ElizaCategories(dict[str, List[str]]):
         return '\n'.join(f"{k}:\n{indent(str(v), INDENT)}" for k, v in self.items())
 
 @autogen_repr
-class ElizaEntry():
+class ElizaEntry:
     def __init__(self,
                  alias: Optional[str] = None,
                  rank: Optional[int] = None,
-                 redirection: Optional[str] = None,
                  response_rules: Optional[ElizaRulesList] = None,
                  memory_rules: Optional[ElizaRulesList] = None):
 
         self.alias = None
         self.rank = None
-        self.redirection = None
         self.response_rules = ElizaRulesList()
         self.memory_rules = ElizaRulesList()
-        self.update(alias=alias, rank=rank, redirection=redirection,
+        self.update(alias=alias, rank=rank,
                     response_rules=response_rules, memory_rules=memory_rules)
     
     def __str__(self):
-        return (f"{self.alias}, {self.rank}, {self.redirection},\n"
+        return (f"{self.alias}, {self.rank},\n"
                 f"{self.response_rules},\n{self.memory_rules}")
 
     def update(self, **kwargs):
@@ -60,20 +59,57 @@ class ElizaRulesList(list["ElizaRule"]):
     def __str__(self):
         return "["+',\n'.join(str(elem) for elem in self)+"]"
 
+
+class ElizaReassemblyList(list["ElizaReassembly"]):
+    def __init__(self, *args):
+        super().__init__(*args)
+        self._index = 0
+
+    def __str__(self):
+        return "["+',\n '.join("'"+str(elem)+"'" for elem in self)+"]"
+
+    def __call__(self):
+        return self.next()
+
+    def next(self):
+        if not self:
+            raise IndexError("No reassembly rules available.")
+
+        item = self[self._index]
+        self._index = (self._index + 1) % len(self)
+        return item
+
+
 @autogen_repr
-class ElizaRule():
-    """Docstring"""
+class ElizaRule:
     def __init__(self,
-                 pattern: str,
+                 pattern: Optional[str] = None,
+                 redirection: Optional[str] = None,
                  reassembly_list: Optional[ElizaReassemblyList] = None,
                  context: Optional[ElizaContext] = None):
         
+        # For now ElizaRule is either a pattern or a redirection
+        assert pattern or redirection and not pattern and redirection
+        
         self.pattern = pattern
+        self.redirection = redirection
         self.reassembly_list = ElizaReassemblyList()
-        self._compiled_regex = None
         self.context = context
+        self._compiled_regex = None
         self.update(reassembly_list=reassembly_list)
 
+    @classmethod
+    def from_pattern(cls, pattern: str,
+                     reassembly_list: ElizaReassemblyList,
+                     context: ElizaContext):
+        return cls(pattern=pattern,
+                   reassembly_list=reassembly_list, context=context)
+
+    @classmethod
+    def from_redirection(cls, redirection: str,
+                         context: ElizaContext):
+        return cls(redirection=redirection, context=context)
+    
     def __str__(self):
         return (f"['{self.pattern}',\n"
                 f"{self.reassembly_list}]")
@@ -103,36 +139,36 @@ class ElizaRule():
     to_regex = rules.drule_to_regex
     
 
-class ElizaMemoryRule(ElizaRule):
-    def __init__(self, pattern, reassembly_list=None):
-        super().__init__(pattern, reassembly_list)
-    
-class ElizaReassemblyList(list["ElizaReassembly"]):
-    def __init__(self, *args):
-        super().__init__(*args)
-        self._index = 0
-
-    def __str__(self):
-        return "["+',\n '.join("'"+str(elem)+"'" for elem in self)+"]"
-
-    def __call__(self):
-        return self.next()
-
-    def next(self):
-        if not self:
-            raise IndexError("No reassembly rules available.")
-
-        item = self[self._index]
-        self._index = (self._index + 1) % len(self)
-        return item
-
 @autogen_repr
-class ElizaReassembly():
-    def __init__(self, reassembly: str):
-        self.reassembly = reassembly
+class ElizaReassembly:
+    def __init__(self,
+                 pattern: Optional[str] = None,
+                 redirection: Optional[str] = None):
+
+        # ElizaReassembly is a reassembly or a redirection or both
+        #assert reassembly or redirection
+        
+        self.pattern = pattern
+        self.redirection = redirection
         self._format: Optional[str] = None
         self._indices: Optional[list[int]] = None
-        
+
+    @classmethod
+    def from_pattern(cls, pattern: str):
+        return cls(pattern=pattern)
+    
+    @classmethod
+    def from_redirection(cls, redirection: str):
+        return cls(redirection=redirection)
+    
+    @classmethod
+    def from_preformat(cls, pattern: str, redirection: str):
+        return cls(pattern=pattern, redirection=redirection)
+    
+    @classmethod
+    def from_newkey(cls):
+        return cls()
+    
     def __str__(self):
         return f"{self.reassembly}"
 
@@ -146,7 +182,8 @@ class ElizaReassembly():
 
     # instance method to build the template
     to_template = rules.rrule_to_template
-    
+
+
 class ElizaKeystack:
     def __init__(self):
         self._stack = deque()

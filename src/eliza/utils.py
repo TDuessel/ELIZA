@@ -22,8 +22,13 @@ WORD_RE = re.compile(WORD)
 # That is done by the tokenizer afterwards.
 SPLIT_REGEX = re.compile(r"[.?!,:;]+(?=\s)")
 
+REDIR_RE = re.compile(r'^=\s*(\S+)\s*$')
+
 # PRE rule detection an capturing of preformatter and redirection target
 PRE_RE = re.compile(r"^PRE\s*\(\s*(.*?)\s*\)\s*\(\s*=\s*(.*?)\s*\)$")
+#PRE_FULL_RE = re.compile(r'^PRE\s*\((.*)\)\s*=\s*(\S+)\s*$')
+
+NEWKEY_RE = re.compile(r'^NEWKEY$')
 
 # Default indentation for hierachical __str__
 INDENT = '  '

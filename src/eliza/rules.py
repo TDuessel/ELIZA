@@ -81,7 +81,7 @@ def rrule_to_template(self: "ElizaReassembly") -> tuple[str, list[int]]:
     :param rrule: Input string containing positive numbers
     :return: Tuple (modified string, list of found numbers)
     """
-    numbers = re.findall(r'\b(\d+)\b', self.reassembly)  # Find all whole positive numbers
-    formatted_string = re.sub(r'\b\d+\b', '{}', self.reassembly)  # Replace numbers with '{}'
+    numbers = re.findall(r'\b(\d+)\b', self.pattern)  # Find all whole positive numbers
+    formatted_string = re.sub(r'\b\d+\b', '{}', self.pattern)  # Replace numbers with '{}'
     return formatted_string, [int(num) for num in numbers]
 
