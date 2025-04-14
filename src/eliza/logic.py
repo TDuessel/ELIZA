@@ -2,6 +2,7 @@ import regex as re
 from typing import Optional
 from .utils import SPLIT_REGEX, WORD_RE, PRE_RE
 from .exceptions import ElizaScriptError
+from .logger import logger
 from .model import ElizaEntry, ElizaRule, ElizaReassemblyList
 
 def process_keyword_entry(self: "Eliza",
@@ -27,9 +28,11 @@ def process_keyword_entry(self: "Eliza",
     for rule in rules:
         
         if rule.redirection:
+            logger.info(f"  rule.redirection: {rule.redirection}")
             return process_keyword_entry(self, rule.redirection,
                                          reflected_input, use_memory, visited_keys)
 
+        logger.info(f"  rule.pattern: {rule.pattern}")
         match = rule.regex.fullmatch(reflected_input)
         if match:
             groups = match.groups()
@@ -38,6 +41,7 @@ def process_keyword_entry(self: "Eliza",
             response = None
             
             if reassembly.pattern:
+                logger.info(f"   reassembly.pattern: {reassembly.pattern}")
                 response_format, capture_indices = reassembly.template
                 selected = [
                     re.sub(r"\s+", " ", groups[i - 1]) if groups[i - 1] else ""
@@ -46,6 +50,7 @@ def process_keyword_entry(self: "Eliza",
                 response = response_format.format(*selected)
 
             if reassembly.redirection:
+                logger.info(f"   reassembly.redirection: {reassembly.redirection}")
                 if response:
                     reflected_input = response
                 return process_keyword_entry(self, reassembly.redirection,
@@ -55,7 +60,7 @@ def process_keyword_entry(self: "Eliza",
                 
     return None
 
-def get_response_logic(self, user_input: str, debug: bool = False) -> str:
+def get_response_logic(self, user_input: str) -> str:
     part_sentences = SPLIT_REGEX.split(user_input)
     reflected_input = ""
     found_keyword = False
@@ -82,6 +87,9 @@ def get_response_logic(self, user_input: str, debug: bool = False) -> str:
         reflected_input = " ".join(tokens)
         if found_keyword:
             break
+    
+    logger.info(f"reflected_input: {reflected_input}")
+    logger.info(f"keystack: {str(self.keystack)}")
 
     response_text = None
     memory_text = None
@@ -89,9 +97,11 @@ def get_response_logic(self, user_input: str, debug: bool = False) -> str:
     # 2) Pop from keystack until we got both or keystack exhausted
     while self.keystack and (not response_text or not memory_text):
         key, _ = self.keystack.pop()
+        logger.info(f" key: {key}")
         if not response_text:
             response_text = process_keyword_entry(self, key, reflected_input,
                                                   use_memory=False, visited_keys=[])
+
         if not memory_text:
             memory_text = process_keyword_entry(self, key, reflected_input,
                                                 use_memory=True, visited_keys=[])
@@ -105,10 +115,12 @@ def get_response_logic(self, user_input: str, debug: bool = False) -> str:
     # 4) If still nothing, try memory
     if not response_text and self.context.memory_queue:
         response_text = self.context.memory_queue.popleft()
+        logger.info(f"memory_queue.popleft: {response_text}")
 
     # 5) If still nothing, fallback to 'NONE' entry
     if not response_text and 'NONE' in self.dictionary:
+        logger.info(" key: NONE")
         response_text = process_keyword_entry(self, 'NONE', reflected_input,
                                               use_memory=False, visited_keys=[])
 
-    return response_text or "I SHOULDN'T SAY THIS ;)"
+    return response_text or "I ShoULd NoT sAy tHIs;)"

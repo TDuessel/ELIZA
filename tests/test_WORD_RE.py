@@ -9,9 +9,6 @@ from eliza.utils import WORD_RE
     ("I don't know", ["I", "DON'T", "KNOW"]),
     ("You'll see", ["YOU'LL", "SEE"]),
 
-    # Numbers
-    ("Room 42 is ready", ["ROOM", "42", "IS", "READY"]),
-
     # Accented characters
     ("niño crème brûlée", ["NIÑO", "CRÈME", "BRÛLÉE"]),
 

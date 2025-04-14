@@ -1,13 +1,17 @@
 # utils.py
+import logging
+import sys
 from typing import Any, Type, TypeVar
 import regex as re
+
+INT = r'\d+'
 
 # Define apostrophes to support: straight and curly
 APOSTROPHES = r"['’]"  # U+0027 and U+2019
 
 # MVP Definition of a "word"
 # Matches: basic words, apostrophes, accents, etc.
-WORD = fr"(?:\p{{L}}+(?:{APOSTROPHES}\p{{L}}+)*|\p{{N}}+)"
+WORD = fr"(?:\p{{L}}+(?:{APOSTROPHES}\p{{L}}+)*)"
 
 # Explanation:
 # - \p{L}+ : one or more Unicode letters (covers a-z, A-Z, and non-English letters like é, ñ)
@@ -22,13 +26,38 @@ WORD_RE = re.compile(WORD)
 # That is done by the tokenizer afterwards.
 SPLIT_REGEX = re.compile(r"[.?!,:;]+(?=\s)")
 
-REDIR_RE = re.compile(r'^=\s*(\S+)\s*$')
+#REDIR_RE = re.compile(r'^=\s*(\S+)\s*$')
+REDIR_RE = re.compile(fr'^=\s*({WORD})\s*$')
 
 # PRE rule detection an capturing of preformatter and redirection target
 PRE_RE = re.compile(r"^PRE\s*\(\s*(.*?)\s*\)\s*\(\s*=\s*(.*?)\s*\)$")
 #PRE_FULL_RE = re.compile(r'^PRE\s*\((.*)\)\s*=\s*(\S+)\s*$')
 
 NEWKEY_RE = re.compile(r'^NEWKEY$')
+
+SWORD = fr"(?:\p{{L}}+(?:\\{APOSTROPHES}\p{{L}}+)*)"
+LISTWORD = rf"\(\s*[\/\*]?\s*{SWORD}(?:\s+{SWORD})*\s*\)"
+VALID_DECO = re.compile(
+    rf"""^
+        (?:
+            {INT}(?!\s+{INT})    # INT not followed by another INT
+          |
+            {SWORD}
+          |
+            {LISTWORD}
+        )
+        (?:\s+
+            (?:
+                {INT}(?!\s+{INT})
+              |
+                {SWORD}
+              |
+                {LISTWORD}
+            )
+        )*
+    $""",
+    re.VERBOSE
+)
 
 # Default indentation for hierachical __str__
 INDENT = '  '

@@ -3,7 +3,7 @@ from typing import Optional
 import sexpdata
 from sexpdata import Symbol, dumps
 from .exceptions import ElizaScriptError
-from .utils import REDIR_RE, PRE_RE, NEWKEY_RE
+from .utils import REDIR_RE, PRE_RE, NEWKEY_RE, VALID_DECO
 from .model import (
     ElizaEntry,
     ElizaRulesList,
@@ -30,8 +30,14 @@ class ElizaScriptRuleError(ElizaScriptError):
         self.rule = rule
         super().__init__(f"Malformed rule: {dumps(rule)}")
 
+class ElizaScriptMemoryRuleError(ElizaScriptError):
+    def __init__(self, rule):
+        self.rule = rule
+        super().__init__(f"Malformed memory-rule: {dumps(rule)}")
+
 def parse_eliza_rules(rules_data: list[list],
-                      context = None) -> ElizaRulesList:
+                      context = None,
+                      is_memory = False) -> ElizaRulesList:
     """Parses ELIZA rules data from a list and returns an ElizaRulesList."""
     
     rules_list = ElizaRulesList()
@@ -42,6 +48,10 @@ def parse_eliza_rules(rules_data: list[list],
 
         # Rule-level redirections: A single keyword in the last rule
         if raw_rule and all(isinstance(e, Symbol) for e in raw_rule):
+            # Memory rules don't support redirections
+            # We (for now) don't support partition syntax (0 = BLAH)
+            if is_memory:
+                raise ElizaScriptMemoryRuleError(raw_rule)
             redirection = sexpdata.dumps(raw_rule)[1:-1].strip('= ')
             if ' ' in redirection or i < len(rules_data) - 1:
                 raise ElizaScriptRuleError(rules_data)  # show all rules
@@ -53,12 +63,19 @@ def parse_eliza_rules(rules_data: list[list],
         # One decomposition rule followed by one or more reassembly rules
         if len(raw_rule) < 2 or not all(isinstance(e, list) for e in raw_rule):
             raise ElizaScriptRuleError(raw_rule)
-        
+
         pattern_str = sexpdata.dumps(raw_rule[0])[1:-1]
+        if not VALID_DECO.fullmatch(pattern_str):
+            raise ElizaScriptRuleError(raw_rule)
+
         reassembly_list = ElizaReassemblyList()
         
         for item in raw_rule[1:]:
             rr = sexpdata.dumps(item)[1:-1].strip()
+
+            if is_memory:
+                reassembly_list.append(ElizaReassembly.from_pattern(rr))
+                continue
             
             # 1) Check if it's just =SOMETHING
             m = REDIR_RE.match(rr)
@@ -85,10 +102,8 @@ def parse_eliza_rules(rules_data: list[list],
                 continue
 
             # 4) Otherwise it's a plain "reassembly" text
-            reassembly_list.append(
-                ElizaReassembly.from_pattern(rr)
-            )
-
+            reassembly_list.append(ElizaReassembly.from_pattern(rr))
+            
         new_rule = ElizaRule.from_pattern(pattern_str, reassembly_list, context)
         
         rules_list.append(new_rule)
@@ -101,7 +116,7 @@ def parse_eliza_data(self: "Eliza", data: str) -> None:
     parsed_data = sexpdata.loads(f'({data})')
 
     for entry in parsed_data:
-        # Symbol STOP or empty list '()' stops the parsing
+        # Symbol STOP or empty list '()' stops evaluation
         if ((isinstance(entry, Symbol) and str(entry) == "STOP")
             or (isinstance(entry, list) and not entry)):
             break;
@@ -112,26 +127,33 @@ def parse_eliza_data(self: "Eliza", data: str) -> None:
         if not isinstance(entry[0], Symbol):
             raise ElizaScriptEntryError(entry)
         
-        key = str(entry[0])  # Keyword
         alias = None
         rank = None
         response_rules = None
         memory_rules = None
 
         # What we are looking for:
-        # key ( DLIST (categories) | MEMORY (rule) ... | [= ALIAS] [rank] (rule) ... )
+        # key MEMORY (rule) ...
+        # key [= ALIAS] DLIST (categories)
+        # key [= ALIAS] [rank] (rule) ...
         
         # Check if this is a MEMORY entry
-        if isinstance(entry[1], Symbol) and str(entry[1]) == "MEMORY":
+        if isinstance(entry[1], Symbol) and "MEMORY" in map(str, entry[:2]):
+            
+            if str(entry[0]) == "MEMORY":
+                key = str(entry[1])
+            else:
+                key = str(entry[0])
 
             if not (len(entry) >= 3 and all(isinstance(e, list) for e in entry[2:])):
                 raise ElizaScriptEntryError(entry)
             
-            memory_rules = parse_eliza_rules(entry[2:], context=self.context)
+            memory_rules = parse_eliza_rules(entry[2:], context=self.context, is_memory=True)
 
             self.update_entry(key, memory_rules=memory_rules)
             continue
 
+        key = str(entry[0])  # Keyword
         index = 1  # Start checking the items at index 1
 
         # Check if the second item is "=" (indicating an alias)
@@ -146,12 +168,16 @@ def parse_eliza_data(self: "Eliza", data: str) -> None:
         if (len(entry) > index and isinstance(entry[index], Symbol)
             and str(entry[index]) == "DLIST"):
             
-            if not (len(entry) == index + 2 and isinstance(entry[index+1], list)
-                    and all(isinstance(item, str) for item in entry[index+1])):
+            if not (len(entry) == index + 2
+                    and isinstance(entry[index+1], list)
+                    and all(isinstance(item, Symbol) for item in entry[index+1])):
                 raise ElizaScriptEntryError(entry)
             
-            for dlist_key in entry[index+1]:
-                self.update_category(str(dlist_key), key)
+            for dlist_item in entry[index+1]:
+                # ignore legacy syntax '(/A B ...)'
+                dlist_key = str(dlist_item).strip("/")
+                if dlist_key:
+                    self.update_category(dlist_key, key)
             continue
 
         if len(entry) > index and isinstance(entry[index], int):
