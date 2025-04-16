@@ -8,7 +8,7 @@ from textwrap import indent
 from collections import deque
 from .utils import INDENT, autogen_repr, fmt
 
-from . import rules
+from . import helpers, rules
 
 class ElizaContext:
     def __init__(self, categories: ElizaCategories):
@@ -23,6 +23,9 @@ class ElizaDictionary(dict[str, "ElizaEntry"]):
     def __str__(self):
         return '\n'.join(f"{k}:\n{indent(str(v), INDENT)}" for k, v in self.items())
     
+    def get_statistics(self) -> tuple[int, int]:
+        return helpers.get_dictionary_statistics(self)
+
 class ElizaCategories(dict[str, List[str]]):
     def __str__(self):
         return '\n'.join(f"{k}:\n{indent(str(v), INDENT)}" for k, v in self.items())
