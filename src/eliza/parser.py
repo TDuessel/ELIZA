@@ -16,10 +16,6 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from .core import Eliza
 
-# Some special keywords are not used in input scan
-# They are marked during parsing by a rank == None 
-special_keys = ["DIT", "XFREMD", "NONE"]
-
 class ElizaScriptEntryError(ElizaScriptError):
     def __init__(self, entry):
         self.entry = entry
@@ -111,6 +107,10 @@ def parse_eliza_rules(rules_data: list[list],
     return rules_list if rules_list else None
 
 
+# Special keywords not to consider in the keystack
+# have to have rank = 0 set explicitly in the script.
+# Entries without a rank get a default rank = 1.
+
 def parse_eliza_data(self: "Eliza", data: str) -> None:
     """Parses ELIZA script data from a string."""
     parsed_data = sexpdata.loads(f'({data})')
@@ -191,9 +191,9 @@ def parse_eliza_data(self: "Eliza", data: str) -> None:
         # Unpack individual response rules
         response_rules = parse_eliza_rules(entry[index:], context=self.context)
                                            
-         # Apply default rank for all but special keys
-        if not rank and not key in special_keys:
-            rank = 0
+         # Apply default rank
+        if not rank:
+            rank = 1
 
         # Store in dictionary as object
         self.update_entry(key, alias=alias, rank=rank,

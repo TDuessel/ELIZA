@@ -74,7 +74,7 @@ def get_response_logic(self, user_input: str) -> str:
         toprank = 0
         for i, token in enumerate(tokens):
             entry = self.dictionary.get(token)
-            if entry and entry.rank is not None:
+            if entry and entry.rank:
                 rank = entry.rank
                 if entry.alias:
                     tokens[i] = entry.alias
